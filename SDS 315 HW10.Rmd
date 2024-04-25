@@ -1,0 +1,170 @@
+---
+title: "SDS 315 HW10"
+author: "Preston Bui"
+date: "2024-04-24"
+output: pdf_document
+---
+
+EID: ppb434
+
+Github Repo: [https://github.com/PrestonBui/SDS315-HW10](https://github.com/PrestonBui/SDS315-HW10)
+
+```{r libraries, message = FALSE, echo = FALSE}
+library(tidyverse)
+library(broom)
+library(ggplot2)
+```
+
+# **Problem 1**
+### **1) Question **
+
+Are the number of FAIR policies issued in different ZIP codes of Chicago associated with the racial/ethnic composition of those areas, after controlling for fire incidents, age of housing, and income?
+
+### **2) Approach **
+
+```{r setup, include=FALSE}
+data <- read_csv("~/Downloads/redlining.csv")
+head(data)
+
+model <- lm(policies ~ minority + fire + age + income, data = data)
+```
+
+To address the question, I performed a linear regression analysis, using the number of FAIR policies per 100 housing units as the dependent variable and the percentage of minority population, fire incidents per 100 housing units, percentage of pre-WWII buildings, and median family income as independent variables.
+
+### **3) Results **
+```{r echo = FALSE, smaller-plot, fig.width=5, fig.height=4}
+ggplot(data, aes(x = minority, y = policies)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+```
+
+### **4) Conclusion **
+The analysis reveals that as the percentage of minorities in a ZIP code increases, so does the number of FAIR policies issued, suggesting a possible barrier to private insurance access for minority residents. This pattern holds even after adjusting for factors like fire risk, housing age, and income, highlighting a need for closer scrutiny of insurance practices.
+
+
+# **Problem 2**
+### **Part A**
+
+```{r echo = FALSE}
+grocery_data <- read_csv("~/Downloads/groceries.csv", show_col_types = FALSE)
+
+
+average_price_per_store <- grocery_data %>%
+  group_by(Store) %>%
+  summarise(AveragePrice = mean(Price, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(desc(AveragePrice))
+
+ggplot(average_price_per_store, aes(x = Store, y = AveragePrice)) +
+  geom_bar(stat = "identity") +
+  coord_flip() + 
+  labs(y = "Average Price ($)", 
+       x = "Store", 
+       title = "Average Price of Products by Store", 
+       caption = "Data represents average prices from various stores in Texas.") +
+  theme_minimal()
+
+
+```
+
+### **Part B**
+
+```{r echo = FALSE}
+product_distribution <- grocery_data %>%
+  group_by(Product) %>%
+  summarise(StoresCount = n_distinct(Store)) %>%
+  ungroup() %>%
+  arrange(desc(StoresCount))
+
+ggplot(product_distribution, aes(x = Product, y = StoresCount)) +
+  geom_bar(stat = "identity") +
+  coord_flip() + 
+  labs(y = "Number of Stores Selling the Product", 
+       x = "Product", 
+       title = "Availability of Products Across Different Stores") +
+  theme_minimal()
+
+
+```
+
+### **Part C**
+```{r echo = FALSE}
+model_Type_Store <- lm(Price ~ Product + Type, data = grocery_data)
+
+ci_types <- confint(model_Type_Store)
+
+ci_Type_Convenience <- -ci_types["TypeGrocery", ]
+
+lower_bound <- ci_Type_Convenience[1]
+upper_bound <- ci_Type_Convenience[2]
+
+interpretation <- paste("Compared with ordinary grocery stores, convenience stores charge between",
+                        sprintf("%.2f", lower_bound), "and",
+                        sprintf("%.2f", upper_bound), "dollars more for the same product.")
+interpretation
+```
+
+### **Part D**
+```{r echo = FALSE}
+model_Product_Store <- lm(Price ~ Product + Store, data = grocery_data)
+
+summary_model_Product_Store <- summary(model_Product_Store)
+
+store_coefficients <- summary_model_Product_Store$coefficients[grepl("Store", rownames(summary_model_Product_Store$coefficients)), ]
+
+sorted_stores <- sort(store_coefficients[, "Estimate"])
+
+lowest_prices_stores <- names(sorted_stores)[1:2]
+
+highest_prices_stores <- names(sorted_stores)[(length(sorted_stores)-1):length(sorted_stores)]
+
+paste("The two stores with the lowest prices are:", paste(lowest_prices_stores, collapse = " and "), ".")
+paste("The two stores with the highest prices are:", paste(highest_prices_stores, collapse = " and "), ".")
+
+```
+
+### **Part E**
+```{r echo = FALSE}
+store_coefficients <- sorted_stores
+
+cm_heb_difference <- store_coefficients["StoreCentral Market"] - store_coefficients["StoreH-E-B"]
+
+max_difference_among_stores <- max(store_coefficients) - min(store_coefficients)
+
+paste("Central Market charges about", sprintf("%.2f", cm_heb_difference), 
+      "dollars more for the same product than HEB. This difference is", 
+      sprintf("%.2f%%", (cm_heb_difference / max_difference_among_stores) * 100),
+      "of the largest price difference among all stores.")
+
+```
+
+### **Part F**
+```{r echo = FALSE}
+grocery_data <- mutate(grocery_data, Income10K = Income / 10000)
+
+model_Income <- lm(Price ~ Product + Income10K, data = grocery_data)
+
+summary_model_Income <- summary(model_Income)
+
+sd_income <- sd(grocery_data$Income10K)
+sd_price <- sd(grocery_data$Price)
+
+beta_Income10K <- summary_model_Income$coefficients["Income10K", "Estimate"] * (sd_income / sd_price)
+
+interpretation_sign <- ifelse(summary_model_Income$coefficients["Income10K", "Estimate"] > 0, "less", "more")
+
+interpretation_size <- sprintf("A one-standard deviation increase in the income of a ZIP code seems to be associated with a %.2f standard-deviation change in the price that consumers in that ZIP code expect to pay for the same product.", beta_Income10K)
+
+```
+
+More, because consumers in poorer ZIP codes pay more because the negative Income10K coefficient indicates that lower income levels are associated with higher product prices
+
+A one-standard deviation increase in the income of a ZIP code seems to be associated with
+a `beta_Income10K`standard-deviation change in the price that consumers in that ZIP code expect to pay for
+the same product.
+
+
+
+
+
